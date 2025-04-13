@@ -6,6 +6,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { Menu, X, User, Bookmark, Star } from "lucide-react";
 import prorepLogo from "../../assets/prorep-logo.png";
+import { db, auth } from "../../firebase/firebase";
+import {
+  collection,
+  getDocs,
+  updateDoc,
+  doc,
+  onSnapshot,
+} from "firebase/firestore";
+import { toast } from "react-hot-toast";
 
 const departments = [
   "Applied Chemistry", "Applied Mathematics", "Applied Physics", "Biotechnology",
@@ -15,39 +24,66 @@ const departments = [
   "Software Engineering", "Management", "Economics",
 ];
 
-const sampleProblems = [
-  {
-    id: "1",
-    title: "Optimizing Water Filtration",
-    department: "Environmental Engineering",
-    description: "Design an affordable water filter for rural communities...",
-  },
-  {
-    id: "2",
-    title: "AI Proctoring System",
-    department: "Computer Engineering",
-    description: "Build a secure AI-based exam monitoring system...",
-  },
-];
-
 export default function StudentProblems() {
   const [selectedDept, setSelectedDept] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [flip, setFlip] = useState(false);
+  const [problems, setProblems] = useState<any[]>([]);
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, "problems"), (snapshot) => {
+      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      setProblems(data);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const currentUser = auth.currentUser;
+    if (currentUser) setUser(currentUser);
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => setFlip((prev) => !prev), 5000);
     return () => clearInterval(interval);
   }, []);
 
+  const handleToggle = async (
+    id: string,
+    field: "bookmarks" | "interested"
+  ) => {
+    if (!user) return toast.error("Please login to continue");
+    const updatedProblem = problems.find((p) => p.id === id);
+    if (!updatedProblem) return;
+
+    const currentArray = updatedProblem[field] || [];
+    const updatedArray = currentArray.includes(user.uid)
+      ? currentArray.filter((uid: string) => uid !== user.uid)
+      : [...currentArray, user.uid];
+
+    try {
+      await updateDoc(doc(db, "problems", id), { [field]: updatedArray });
+    } catch (error) {
+      toast.error("Failed to update problem");
+    }
+  };
+
   const filteredProblems = selectedDept
-    ? sampleProblems.filter((p) => p.department === selectedDept)
-    : sampleProblems;
+    ? problems.filter((p) => p.departments?.includes(selectedDept))
+    : problems;
 
   const navItems = [
-    { name: "Profile", icon: <User size={18} />, path: "#" },
-    { name: "Interested", icon: <Star size={18} />, path: "#" },
-    { name: "Bookmarked", icon: <Bookmark size={18} />, path: "#" },
+    {
+      name: "Interested",
+      icon: <Star size={18} />,
+      path: user ? `/interested?uid=${user.uid}` : "#",
+    },
+    {
+      name: "Bookmarked",
+      icon: <Bookmark size={18} />,
+      path: user ? `/bookmarked?uid=${user.uid}` : "#",
+    },
   ];
 
   return (
@@ -58,7 +94,10 @@ export default function StudentProblems() {
       <div className="absolute top-0 left-0 w-24 h-24 bg-blue-900 rounded-br-full z-0" />
 
       {/* Sidebar */}
-      <button className="fixed top-4 left-4 z-50 bg-blue-700 text-white p-2 rounded-md shadow-md" onClick={() => setSidebarOpen(true)}>
+      <button
+        className="fixed top-4 left-4 z-50 bg-blue-700 text-white p-2 rounded-md shadow-md"
+        onClick={() => setSidebarOpen(true)}
+      >
         <Menu size={22} />
       </button>
 
@@ -70,12 +109,16 @@ export default function StudentProblems() {
       >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-blue-700">ProRep</h2>
-          <button onClick={() => setSidebarOpen(false)}>
+          <button onClick={() => setSidebarOpen(false)} className="cursor-pointer">
             <X size={22} />
           </button>
         </div>
         {navItems.map((item, i) => (
-          <Link key={i} href={item.path} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-blue-100 text-gray-700 transition-all">
+          <Link
+            key={i}
+            href={item.path}
+            className="flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-blue-100 text-gray-700 transition-all"
+          >
             {item.icon}
             {item.name}
           </Link>
@@ -89,11 +132,20 @@ export default function StudentProblems() {
         transition={{ duration: 1.2, ease: "easeInOut" }}
         style={{ perspective: 1000 }}
       >
-        <motion.div className="w-[160px] h-[60px] [transform-style:preserve-3d]" animate={{ rotateY: flip ? 180 : 0 }}>
-          <motion.div className="absolute w-full h-full backface-hidden" style={{ backfaceVisibility: "hidden" }}>
+        <motion.div
+          className="w-[160px] h-[60px] [transform-style:preserve-3d]"
+          animate={{ rotateY: flip ? 180 : 0 }}
+        >
+          <motion.div
+            className="absolute w-full h-full backface-hidden"
+            style={{ backfaceVisibility: "hidden" }}
+          >
             <Image src={prorepLogo} alt="ProRep Logo" width={160} height={60} />
           </motion.div>
-          <motion.div className="absolute w-full h-full backface-hidden flex items-center justify-center text-xl font-bold text-blue-800" style={{ transform: "rotateY(180deg)", backfaceVisibility: "hidden" }}>
+          <motion.div
+            className="absolute w-full h-full backface-hidden flex items-center justify-center text-xl font-bold text-blue-800"
+            style={{ transform: "rotateY(180deg)", backfaceVisibility: "hidden" }}
+          >
             ProRep by CCDR
           </motion.div>
         </motion.div>
@@ -108,7 +160,9 @@ export default function StudentProblems() {
         >
           <option value="">All Departments</option>
           {departments.map((dept, i) => (
-            <option key={i} value={dept}>{dept}</option>
+            <option key={i} value={dept}>
+              {dept}
+            </option>
           ))}
         </select>
       </div>
@@ -121,13 +175,42 @@ export default function StudentProblems() {
             whileHover={{ scale: 1.02 }}
             className="bg-white p-4 rounded-xl shadow-md transition relative"
           >
-            <h3 className="text-lg font-semibold text-blue-800 mb-1">{problem.title}</h3>
-            <p className="text-sm text-gray-500 mb-2">{problem.department}</p>
-            <p className="text-sm text-gray-600 mb-3 line-clamp-3">{problem.description}</p>
+            <h3 className="text-lg font-semibold text-blue-800 mb-1">
+              {problem.title}
+            </h3>
+            <p className="text-sm text-gray-500 mb-2">
+              {problem.department || problem.departments?.[0]}
+            </p>
+            <p className="text-sm text-gray-600 mb-3 line-clamp-3">
+              {problem.description || problem.statement}
+            </p>
             <div className="flex gap-2">
-              <button className="px-3 py-1 border border-blue-500 text-blue-600 text-xs rounded hover:bg-blue-50">Bookmark</button>
-              <button className="px-3 py-1 border border-purple-500 text-purple-600 text-xs rounded hover:bg-purple-50">Interested</button>
-              <Link href={`/problems/${problem.id}`} className="ml-auto text-blue-600 text-xs hover:underline">View Details</Link>
+              <button
+                onClick={() => handleToggle(problem.id, "bookmarks")}
+                className={`px-3 py-1 border text-xs rounded transition cursor-pointer ${
+                  problem.bookmarks?.includes(user?.uid)
+                    ? "bg-blue-100 border-blue-600 text-blue-800"
+                    : "border-blue-500 text-blue-600 hover:bg-blue-50"
+                }`}
+              >
+                Bookmark
+              </button>
+              <button
+                onClick={() => handleToggle(problem.id, "interested")}
+                className={`px-3 py-1 border text-xs rounded transition cursor-pointer ${
+                  problem.interested?.includes(user?.uid)
+                    ? "bg-purple-100 border-purple-600 text-purple-800"
+                    : "border-purple-500 text-purple-600 hover:bg-purple-50"
+                }`}
+              >
+                Interested
+              </button>
+              <Link
+                href={`/problems/${problem.id}`}
+                className="ml-auto text-blue-600 text-xs hover:underline"
+              >
+                View Details
+              </Link>
             </div>
           </motion.div>
         ))}
@@ -136,11 +219,28 @@ export default function StudentProblems() {
       {/* Footer */}
       <footer className="absolute bottom-0 w-full bg-blue-900 text-white py-6 px-4">
         <div className="flex flex-col items-center relative z-10">
-          <p className="text-sm sm:text-base font-semibold mb-3">ProRep by CCDR, DTU</p>
+          <p className="text-sm sm:text-base font-semibold mb-3">
+            ProRep by CCDR, DTU
+          </p>
           <div className="flex gap-3">
-            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full" style={{ background: "radial-gradient(circle at 30% 30%, #60a5fa, #3b82f6)" }} />
-            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full" style={{ background: "radial-gradient(circle at 30% 30%, #a78bfa, #7c3aed)" }} />
-            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full" style={{ background: "radial-gradient(circle at 30% 30%, #38bdf8, #0ea5e9)" }} />
+            <div
+              className="w-6 h-6 sm:w-8 sm:h-8 rounded-full"
+              style={{
+                background: "radial-gradient(circle at 30% 30%, #60a5fa, #3b82f6)",
+              }}
+            />
+            <div
+              className="w-6 h-6 sm:w-8 sm:h-8 rounded-full"
+              style={{
+                background: "radial-gradient(circle at 30% 30%, #a78bfa, #7c3aed)",
+              }}
+            />
+            <div
+              className="w-6 h-6 sm:w-8 sm:h-8 rounded-full"
+              style={{
+                background: "radial-gradient(circle at 30% 30%, #38bdf8, #0ea5e9)",
+              }}
+            />
           </div>
         </div>
         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-900 rounded-bl-[80px] z-0" />

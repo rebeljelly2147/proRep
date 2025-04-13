@@ -6,12 +6,58 @@ import Image from "next/image";
 import prorepLogo from "../../assets/prorep-logo.png";
 import { motion } from "framer-motion";
 import { Eye, EyeOff } from "lucide-react";
+import { toast } from "react-hot-toast";
+import { auth, db } from "../../firebase/firebase";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import Cookies from "js-cookie";
+
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
+  const [intentRole, setIntentRole] = useState<"student" | "admin" | null>(null);
+
+  const handleLogin=async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const loadingToast = toast.loading("Logging in...");
+
+
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists()) {
+        toast.dismiss(loadingToast);
+        toast.error("User not found in database.");
+        return;
+      }
+      
+      const userData = userSnap.data();
+      const actualRole=userData.role;
+
+      if(actualRole !== intentRole) {
+        toast.dismiss(loadingToast);
+        toast.error(`You are not authorized as ${intentRole}.`);
+        return;
+      }
+
+      Cookies.set("userRole", actualRole, { expires: 7 });
+      toast.success(`Welcome ${actualRole}!`, { id: loadingToast });
+
+      if (actualRole === "admin") router.push("/dashboard");
+      else router.push("/main");
+
+
+    } catch (error) {
+      toast.error("Invalid email or password", { id: loadingToast });
+    }
+  }
 
   return (
     <div className="relative min-h-screen w-full bg-gradient-to-br from-[#e0f2fe] to-[#ede9fe] overflow-hidden flex items-center justify-center px-4">
@@ -30,7 +76,7 @@ export default function LoginPage() {
         <h2 className="text-2xl sm:text-3xl font-bold text-center mb-2 text-gray-800">Welcome Back! 👋</h2>
         <p className="text-center text-sm text-gray-500 mb-6">Login to access your account</p>
 
-        <form>
+        <form onClick={handleLogin}>
           <input
             type="email"
             placeholder="Email"
@@ -66,12 +112,14 @@ export default function LoginPage() {
             <button
               type="submit"
               className="cursor-pointer w-1/2 px-6 py-2 bg-white text-blue-700 border border-blue-500 rounded-lg text-sm font-semibold hover:bg-blue-500 hover:text-white transition-colors duration-100"
+              onClick={() => setIntentRole("student")}
             >
               Student
             </button>
             <button
               type="submit"
               className="cursor-pointer w-1/2 px-6 py-2 bg-white text-purple-700 border border-purple-500 rounded-lg text-sm font-semibold hover:bg-purple-500 hover:text-white transition-colors duration-100"
+              onClick={() => setIntentRole("admin")}
             >
               Admin
             </button>

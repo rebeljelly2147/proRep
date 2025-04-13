@@ -6,6 +6,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { Menu, X, User, FileText } from "lucide-react";
 import prorepLogo from "../../assets/prorep-logo.png";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { auth } from "../../firebase/firebase";
+import toast from "react-hot-toast";
+import { db } from "../../firebase/firebase";
+import router from "next/router";
 
 const dtuDepartments = [
   "Applied Chemistry", "Applied Mathematics", "Applied Physics", "Biotechnology",
@@ -20,6 +25,15 @@ export default function AdminDashboard() {
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [flip, setFlip] = useState(false);
+  const [uid, setUid] = useState<string | null>(null);
+
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) setUid(user.uid);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => setFlip((prev) => !prev), 5000);
@@ -27,8 +41,8 @@ export default function AdminDashboard() {
   }, []);
 
   const navItems = [
-    { name: "Profile", icon: <User size={18} />, path: "#" },
-    { name: "All Problems", icon: <FileText size={18} />, path: "#" },
+    { name: "Profile", icon: <User size={18} />, path: uid ? `/adminProfile/${uid}` : "#" },
+    { name: "All Problems", icon: <FileText size={18} />, path: "/allProblems" },
   ];
 
   const addKeyword = () => setKeywords([...keywords, ""]);
@@ -48,6 +62,49 @@ export default function AdminDashboard() {
       prev.includes(dept) ? prev.filter((d) => d !== dept) : [...prev, dept]
     );
   };
+
+  const handleSubmit= async (e: React.FormEvent) => {
+    e.preventDefault();
+    const user= auth.currentUser;
+    if(!user){
+      toast.error("User not authenticated. Please log in.");
+      router.push("/");
+      return;
+    }
+    const problemData = {
+      title: (document.querySelector('input[placeholder="Project Title"]') as HTMLInputElement)?.value,
+      domain: (document.querySelector('input[placeholder="Domain"]') as HTMLInputElement)?.value,
+      statement: (document.querySelector('textarea[placeholder="Broad Problem Statement"]') as HTMLTextAreaElement)?.value,
+      departments: selectedDepartments,
+      keywords: keywords.filter(k => k.trim() !== ""),
+      source: (document.querySelector('input[placeholder="Problem Source"]') as HTMLInputElement)?.value,
+      sourceLink: (document.querySelector('input[placeholder="Source Link"]') as HTMLInputElement)?.value,
+      organisation: (document.querySelector('input[placeholder="Relevant Organisation"]') as HTMLInputElement)?.value,
+      notes: (document.querySelector('textarea[placeholder="Additional Notes (Optional)"]') as HTMLTextAreaElement)?.value || "",
+      createdBy: {
+        uid: user.uid,
+        email: user.email,
+      },
+      createdAt: serverTimestamp(),
+    };
+    try{
+      await addDoc(collection(db, "problems"), problemData);
+      toast.success("Problem statement submitted successfully!");
+      setKeywords([""]);
+      setSelectedDepartments([]);
+      (document.querySelector('input[placeholder="Project Title"]') as HTMLInputElement).value = "";
+      (document.querySelector('input[placeholder="Domain"]') as HTMLInputElement).value = "";
+      (document.querySelector('textarea[placeholder="Broad Problem Statement"]') as HTMLTextAreaElement).value = "";
+      (document.querySelector('input[placeholder="Problem Source"]') as HTMLInputElement).value = "";
+      (document.querySelector('input[placeholder="Source Link"]') as HTMLInputElement).value = "";
+      (document.querySelector('input[placeholder="Relevant Organisation"]') as HTMLInputElement).value = "";
+      (document.querySelector('textarea[placeholder="Additional Notes (Optional)"]') as HTMLTextAreaElement).value = "";
+    }
+    catch(error){
+      console.error("Error submitting problem statement: ", error);
+      toast.error("Failed to submit problem statement. Please try again.");
+    }
+  }
 
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-blue-50 to-purple-100 overflow-hidden pb-48">
@@ -74,7 +131,7 @@ export default function AdminDashboard() {
       >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-blue-700">ProRep</h2>
-          <button onClick={() => setSidebarOpen(false)}>
+          <button onClick={() => setSidebarOpen(false)} className="cursor-pointer">
             <X size={22} />
           </button>
         </div>
@@ -128,7 +185,7 @@ export default function AdminDashboard() {
           Submit Problem Statement
         </h1>
 
-        <form className="space-y-6">
+        <form className="space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <input type="text" placeholder="Project Title" className="form-input" />
             <input type="text" placeholder="Domain" className="form-input" />
@@ -185,7 +242,7 @@ export default function AdminDashboard() {
 
           <button
             type="submit"
-            className="w-full bg-blue-700 text-white font-semibold py-3 rounded-lg hover:bg-blue-800 transition"
+            className="cursor-pointer w-full bg-blue-700 text-white font-semibold py-3 rounded-lg hover:bg-blue-800 transition"
           >
             Submit
           </button>

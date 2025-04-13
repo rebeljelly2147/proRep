@@ -1,17 +1,99 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import prorepLogo from "../../assets/prorep-logo.png";
 import { motion } from "framer-motion";
 import { Eye, EyeOff } from "lucide-react";
+import Cookies from "js-cookie";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { auth, db } from "../../firebase/firebase";
+import { setDoc, doc, serverTimestamp, getDoc } from "firebase/firestore";
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [adminCode, setAdminCode] = useState("");
   const router = useRouter();
+
+  const handleSignUp = async (role: "student" | "admin") => {
+    const loadingToast = toast.loading("Creating account...");
+
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+
+    if (!trimmedEmail || !trimmedPassword) {
+      toast.dismiss(loadingToast);
+      toast.error("Please fill in both email and password.");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      toast.dismiss(loadingToast);
+      toast.error("Invalid email format.");
+      return;
+    }
+
+    const isValidAdminCode = adminCode.trim() === process.env.NEXT_PUBLIC_ADMIN_CODE;
+
+    if (role === "admin" && !isValidAdminCode) {
+      toast.dismiss(loadingToast);
+      toast.error("Invalid admin code.");
+      return;
+    }
+
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, trimmedEmail, trimmedPassword);
+      const user = userCredential.user;
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (userSnap.exists()) {
+        const existingData = userSnap.data();
+        const currentRole = existingData.role;
+
+        if (currentRole !== role) {
+          await setDoc(
+            userRef,
+            {
+              ...existingData,
+              role: role,
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true }
+          );
+          toast.success(`Role changed to ${role}`);
+        } else {
+          toast.success("Logged in with existing role.");
+        }
+      } else {
+        await setDoc(userRef, {
+          uid: user.uid,
+          email: user.email,
+          role: role,
+          createdAt: serverTimestamp(),
+          bookmarks: [],
+          interested: [],
+        });
+
+        toast.success(`Signed up successfully as ${role}!`);
+      }
+
+      Cookies.set("userRole", role, { expires: 7 });
+      toast.dismiss(loadingToast);
+      router.push("/main");
+    } catch (err: any) {
+      console.error("Signup Error:", err);
+      toast.dismiss(loadingToast);
+      toast.error("Signup failed.");
+    }
+  };
+
+  const isValidAdminCode = adminCode.trim() === process.env.NEXT_PUBLIC_ADMIN_UUID;
 
   return (
     <div className="relative min-h-screen w-full bg-gradient-to-br from-[#e0f2fe] to-[#ede9fe] overflow-hidden flex items-center justify-center px-4">
@@ -30,17 +112,17 @@ export default function SignupPage() {
         <h2 className="text-2xl sm:text-3xl font-bold text-center mb-2 text-gray-800">Create Your Account 👋</h2>
         <p className="text-center text-sm text-gray-500 mb-6">Sign up to get started</p>
 
-        <form>
+        <form onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-4 sm:gap-5">
           <input
             type="email"
             placeholder="Email"
-            className="w-full px-4 py-2 mb-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
           />
 
-          <div className="relative mb-6">
+          <div className="relative">
             <input
               type={showPassword ? "text" : "password"}
               placeholder="Password"
@@ -58,15 +140,40 @@ export default function SignupPage() {
             </button>
           </div>
 
-          <button
-            type="submit"
-            className="w-full bg-white text-blue-700 border border-blue-500 text-sm hover:bg-blue-500 hover:text-white transition-colors duration-100 py-2 rounded-lg font-semibold cursor-pointer"
-          >
-            Sign Up
-          </button>
+          <input
+            type="text"
+            placeholder="Admin Code (optional)"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 text-sm"
+            value={adminCode}
+            onChange={(e) => setAdminCode(e.target.value)}
+          />
+
+          {/* Responsive Role Selection Buttons */}
+          <div className="grid grid-cols-2 gap-3 mt-2">
+            <button
+              type="button"
+              onClick={() => handleSignUp("student")}
+              className="min-h-[42px] text-sm px-4 py-2 rounded-lg font-semibold border bg-blue-500 text-white hover:bg-blue-600 transition text-center cursor-pointer"
+            >
+              Signup as Student
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSignUp("admin")}
+              disabled={!isValidAdminCode}
+              className={`min-h-[42px] text-sm px-4 py-2 rounded-lg font-semibold border text-center transition duration-10 cursor-pointer${
+                isValidAdminCode
+                  ? "bg-purple-500 text-white bg-purple-600 cursor-pointer hover:bg-purple-700"
+                  : "bg-white text-purple-700 border-purple-500 opacity-50 cursor-not-allowed"
+              }`}
+            >
+              Signup as Admin
+            </button>
+          </div>
 
           <p className="text-center text-sm text-gray-600 mt-4">
-            Already have an account? {" "}
+            Already have an account?{" "}
             <button
               type="button"
               onClick={() => router.push("/login")}
