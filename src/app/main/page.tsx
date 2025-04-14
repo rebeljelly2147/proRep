@@ -108,7 +108,7 @@ export default function StudentProblems() {
 
   const handleToggleBookmark=async(id:string)=>{
     const querySnapshot=await getDocs(collection(db, "users"));
-    const AllUsers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const AllUsers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as { id: string; bookmarks: string[]; interested: string[]; }));
     console.log("All Users:", AllUsers);
     const currentUser = AllUsers.find(u => u.id === user.uid);
     
@@ -119,7 +119,7 @@ export default function StudentProblems() {
         return;
       }
     setCurrentStudent(currentUser);
-    const bookMarkArray=currentUser.bookmarks;
+    const bookMarkArray = (currentUser as { id: string; bookmarks: string[]; }).bookmarks;
 
     if(bookMarkArray.includes(id)){
       const updatedArray=bookMarkArray.filter((uid:string)=>uid!==id);
@@ -149,7 +149,7 @@ export default function StudentProblems() {
     }
 
     setCurrentStudent(currentUser);
-    const interestedArray=currentUser.interested;
+    const interestedArray = (currentUser as { id: string; interested: string[]; }).interested;
 
     if(interestedArray.includes(id)){
       const updatedArray=interestedArray.filter((uid:string)=>uid!==id);

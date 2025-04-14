@@ -31,13 +31,20 @@ export default function AllProblemsPage() {
     fetchProblems();
   }, [filters]);
 
+  interface Problem {
+    id: string;
+    keywords?: string[];
+    departments?: string[];
+    organisation?: string;
+  }
+
   const fetchProblems = async () => {
     try {
       const q = query(collection(db, "problems"));
       const snapshot = await getDocs(q);
       const filtered = snapshot.docs
-        .map((doc) => ({ id: doc.id, ...doc.data() }))
-        .filter((problem) => {
+        .map((doc) => ({ id: doc.id, ...doc.data() } as Problem))
+        .filter((problem: Problem) => {
           const matchesKeyword = filters.keyword
             ? problem.keywords?.some((k: string) => k.toLowerCase().includes(filters.keyword.toLowerCase()))
             : true;
@@ -52,7 +59,6 @@ export default function AllProblemsPage() {
       setProblems(filtered);
     } catch (error) {
       console.error("Error fetching problems:", error);
-      toast.error("Failed to load problems");
     }
   };
 
