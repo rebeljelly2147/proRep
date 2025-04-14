@@ -1,44 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { collection, doc, getDoc, getDocs } from "firebase/firestore";
-import { db } from "../../firebase/firebase";
-import { toast } from "react-hot-toast";
-import { motion } from "framer-motion";
+import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
+import { motion } from "framer-motion";
 import prorepLogo from "../../assets/prorep-logo.png";
+import InterestedContent from "./InterestedContent";
 
 export default function InterestedPage() {
-  const searchParams = useSearchParams();
-  const uid = searchParams.get("uid");
-  const [problems, setProblems] = useState<any[]>([]);
   const [flip, setFlip] = useState(false);
-
-  useEffect(() => {
-    const fetchInterestedProblems = async () => {
-      if (!uid) return toast.error("Invalid User ID");
-
-      try {
-        const userRef = doc(db, "users", uid);
-        const userSnap = await getDoc(userRef);
-
-        if (!userSnap.exists()) return toast.error("User not found");
-
-        const interestedIds = userSnap.data().interested || [];
-
-        const problemsSnapshot = await getDocs(collection(db, "problems"));
-        const allProblems = problemsSnapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-        const filtered = allProblems.filter((p) => interestedIds.includes(p.id));
-        setProblems(filtered);
-      } catch (err) {
-        toast.error("Failed to load interested problems");
-        console.error(err);
-      }
-    };
-
-    fetchInterestedProblems();
-  }, [uid]);
 
   useEffect(() => {
     const interval = setInterval(() => setFlip((prev) => !prev), 5000);
@@ -70,19 +39,9 @@ export default function InterestedPage() {
       <div className="relative z-10 max-w-6xl mx-auto bg-white rounded-3xl shadow-xl p-8">
         <h1 className="text-3xl font-bold text-blue-800 text-center mb-6">Interested Problems</h1>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {problems.length === 0 ? (
-            <p className="text-center text-gray-500 italic col-span-full">No interested problems yet.</p>
-          ) : (
-            problems.map((p) => (
-              <motion.div key={p.id} whileHover={{ scale: 1.02 }} className="bg-purple-50 p-4 rounded-xl border border-purple-100 shadow-sm">
-                <h3 className="text-lg font-bold text-purple-800 mb-1">{p.title}</h3>
-                <p className="text-sm text-gray-500 mb-2">{p.department || p.departments?.[0]}</p>
-                <p className="text-sm text-gray-600 mb-3 line-clamp-3">{p.statement}</p>
-              </motion.div>
-            ))
-          )}
-        </div>
+        <Suspense fallback={<p>Loading interested problems...</p>}>
+          <InterestedContent />
+        </Suspense>
       </div>
 
       <footer className="absolute bottom-0 w-full bg-blue-900 text-white py-6 px-4">

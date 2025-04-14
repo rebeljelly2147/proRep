@@ -1,33 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { collection, onSnapshot } from "firebase/firestore";
-import { db } from "../../firebase/firebase";
-import { motion } from "framer-motion";
+import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
 import prorepLogo from "../../assets/prorep-logo.png";
+import BookmarkedContent from "./BookmarkedContent";
+import { motion } from "framer-motion";
 
 export default function BookmarkedPage() {
-  const searchParams = useSearchParams();
-  const uid = searchParams.get("uid");
-  const [problems, setProblems] = useState<any[]>([]);
   const [flip, setFlip] = useState(false);
-
-  useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "problems"), (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      setProblems(data);
-    });
-    return () => unsubscribe();
-  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => setFlip((prev) => !prev), 5000);
     return () => clearInterval(interval);
   }, []);
-
-  const bookmarksProblems = problems.filter((p) => p.bookmarks?.includes(uid));
 
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-blue-50 to-purple-100 py-10 px-4 overflow-hidden">
@@ -54,19 +39,9 @@ export default function BookmarkedPage() {
       <div className="relative z-10 max-w-6xl mx-auto bg-white rounded-3xl shadow-xl p-8">
         <h1 className="text-3xl font-bold text-blue-800 text-center mb-6">Bookmarked Problems</h1>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {bookmarksProblems.length === 0 ? (
-            <p className="text-center text-gray-500 italic col-span-full">No bookmarks yet.</p>
-          ) : (
-            bookmarksProblems.map((problem) => (
-              <motion.div key={problem.id} whileHover={{ scale: 1.02 }} className="bg-blue-50 p-4 rounded-xl border border-blue-100 shadow-sm">
-                <h3 className="text-lg font-bold text-blue-800 mb-1">{problem.title}</h3>
-                <p className="text-sm text-gray-500 mb-2">{problem.department || problem.departments?.[0]}</p>
-                <p className="text-sm text-gray-600 mb-3 line-clamp-3">{problem.statement}</p>
-              </motion.div>
-            ))
-          )}
-        </div>
+        <Suspense fallback={<p>Loading bookmarks...</p>}>
+          <BookmarkedContent />
+        </Suspense>
       </div>
 
       <footer className="absolute bottom-0 w-full bg-blue-900 text-white py-6 px-4">
