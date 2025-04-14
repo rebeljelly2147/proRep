@@ -7,10 +7,10 @@ import Link from "next/link";
 import { Menu, X, User, FileText } from "lucide-react";
 import prorepLogo from "../../assets/prorep-logo.png";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
-import { auth } from "../../firebase/firebase";
+import { db, auth } from "../../firebase/firebase";
 import toast from "react-hot-toast";
-import { db } from "../../firebase/firebase";
-import router from "next/router";
+import Cookies from "js-cookie";
+import { useRouter } from "next/navigation";
 
 const dtuDepartments = [
   "Applied Chemistry", "Applied Mathematics", "Applied Physics", "Biotechnology",
@@ -21,17 +21,25 @@ const dtuDepartments = [
 ];
 
 export default function AdminDashboard() {
+  const router = useRouter();
+  const [uid, setUid] = useState<string | null>(null);
   const [keywords, setKeywords] = useState<string[]>([""]);
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [flip, setFlip] = useState(false);
-  const [uid, setUid] = useState<string | null>(null);
-
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user) setUid(user.uid);
+      const role = Cookies.get("userRole");
+
+      if (!role || role !== "admin" || !user) {
+        toast.error("Access Denied. Admins only.");
+        router.push("/");
+      } else {
+        setUid(user.uid);
+      }
     });
+
     return () => unsubscribe();
   }, []);
 
@@ -63,14 +71,14 @@ export default function AdminDashboard() {
     );
   };
 
-  const handleSubmit= async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const user= auth.currentUser;
-    if(!user){
-      toast.error("User not authenticated. Please log in.");
-      router.push("/");
-      return;
+    const user = auth.currentUser;
+    if (!user) {
+      toast.error("User not authenticated.");
+      return router.push("/");
     }
+
     const problemData = {
       title: (document.querySelector('input[placeholder="Project Title"]') as HTMLInputElement)?.value,
       domain: (document.querySelector('input[placeholder="Domain"]') as HTMLInputElement)?.value,
@@ -81,48 +89,34 @@ export default function AdminDashboard() {
       sourceLink: (document.querySelector('input[placeholder="Source Link"]') as HTMLInputElement)?.value,
       organisation: (document.querySelector('input[placeholder="Relevant Organisation"]') as HTMLInputElement)?.value,
       notes: (document.querySelector('textarea[placeholder="Additional Notes (Optional)"]') as HTMLTextAreaElement)?.value || "",
-      createdBy: {
-        uid: user.uid,
-        email: user.email,
-      },
+      createdBy: { uid: user.uid, email: user.email },
       createdAt: serverTimestamp(),
     };
-    try{
+
+    try {
       await addDoc(collection(db, "problems"), problemData);
       toast.success("Problem statement submitted successfully!");
       setKeywords([""]);
       setSelectedDepartments([]);
-      (document.querySelector('input[placeholder="Project Title"]') as HTMLInputElement).value = "";
-      (document.querySelector('input[placeholder="Domain"]') as HTMLInputElement).value = "";
-      (document.querySelector('textarea[placeholder="Broad Problem Statement"]') as HTMLTextAreaElement).value = "";
-      (document.querySelector('input[placeholder="Problem Source"]') as HTMLInputElement).value = "";
-      (document.querySelector('input[placeholder="Source Link"]') as HTMLInputElement).value = "";
-      (document.querySelector('input[placeholder="Relevant Organisation"]') as HTMLInputElement).value = "";
-      (document.querySelector('textarea[placeholder="Additional Notes (Optional)"]') as HTMLTextAreaElement).value = "";
+      Array.from(document.querySelectorAll("input, textarea")).forEach((el) => (el as HTMLInputElement).value = "");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to submit. Try again.");
     }
-    catch(error){
-      console.error("Error submitting problem statement: ", error);
-      toast.error("Failed to submit problem statement. Please try again.");
-    }
-  }
+  };
 
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-blue-50 to-purple-100 overflow-hidden pb-48">
-      {/* Background blobs */}
+      {/* Background Blobs */}
       <div className="absolute -top-40 -left-32 w-[300px] h-[300px] bg-purple-300 rounded-full blur-[160px] opacity-30 z-0" />
       <div className="absolute -bottom-40 -right-32 w-[300px] h-[300px] bg-blue-300 rounded-full blur-[160px] opacity-30 z-0" />
-      {/* Large dark blue quarter-circle overlay */}
       <div className="absolute top-0 left-0 w-1/4 h-1/2 bg-blue-900 rounded-br-full z-0" />
 
-      {/* Sidebar button */}
-      <button
-        className="fixed top-4 left-4 z-50 bg-blue-700 text-white p-2 rounded-md shadow-md"
-        onClick={() => setSidebarOpen(true)}
-      >
+      {/* Sidebar */}
+      <button className="fixed top-4 left-4 z-50 bg-blue-700 text-white p-2 rounded-md shadow-md" onClick={() => setSidebarOpen(true)}>
         <Menu size={22} />
       </button>
 
-      {/* Sidebar menu */}
       <motion.div
         initial={{ x: -300, opacity: 0 }}
         animate={sidebarOpen ? { x: 0, opacity: 1 } : { x: -300, opacity: 0 }}
@@ -131,50 +125,36 @@ export default function AdminDashboard() {
       >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-blue-700">ProRep</h2>
-          <button onClick={() => setSidebarOpen(false)} className="cursor-pointer">
+          <button onClick={() => setSidebarOpen(false)}>
             <X size={22} />
           </button>
         </div>
         {navItems.map((item, i) => (
-          <Link
-            key={i}
-            href={item.path}
-            className="flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-blue-100 text-gray-700 transition-all"
-          >
+          <Link key={i} href={item.path} className="flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-blue-100 text-gray-700 transition-all">
             {item.icon}
             {item.name}
           </Link>
         ))}
       </motion.div>
 
-      {/* Flipping ProRep logo */}
+      {/* Logo Flip */}
       <motion.div
         className="pt-6 flex justify-center z-10 relative"
         animate={{ rotateY: flip ? 180 : 0 }}
-        transition={{ duration: 1.2, ease: "easeInOut" }}
+        transition={{ duration: 1.2 }}
         style={{ perspective: 1000 }}
       >
-        <motion.div
-          className="w-[160px] h-[60px] [transform-style:preserve-3d]"
-          animate={{ rotateY: flip ? 180 : 0 }}
-          transition={{ duration: 1.2, ease: "easeInOut" }}
-        >
-          <motion.div
-            className="absolute w-full h-full backface-hidden"
-            style={{ backfaceVisibility: "hidden" }}
-          >
+        <motion.div className="w-[160px] h-[60px] [transform-style:preserve-3d]" animate={{ rotateY: flip ? 180 : 0 }}>
+          <motion.div className="absolute w-full h-full backface-hidden" style={{ backfaceVisibility: "hidden" }}>
             <Image src={prorepLogo} alt="ProRep Logo" width={160} height={60} className="rounded" />
           </motion.div>
-          <motion.div
-            className="absolute w-full h-full backface-hidden flex items-center justify-center text-xl font-bold text-blue-800"
-            style={{ transform: "rotateY(180deg)", backfaceVisibility: "hidden" }}
-          >
+          <motion.div className="absolute w-full h-full backface-hidden flex items-center justify-center text-xl font-bold text-blue-800" style={{ transform: "rotateY(180deg)", backfaceVisibility: "hidden" }}>
             ProRep by CCDR
           </motion.div>
         </motion.div>
       </motion.div>
 
-      {/* Form container */}
+      {/* Submission Form */}
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
@@ -197,12 +177,7 @@ export default function AdminDashboard() {
             <div className="grid sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto border border-gray-300 rounded-lg p-3">
               {dtuDepartments.map((dept, i) => (
                 <label key={i} className="flex items-center space-x-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={selectedDepartments.includes(dept)}
-                    onChange={() => toggleDepartment(dept)}
-                    className="accent-blue-600"
-                  />
+                  <input type="checkbox" checked={selectedDepartments.includes(dept)} onChange={() => toggleDepartment(dept)} className="accent-blue-600" />
                   <span>{dept}</span>
                 </label>
               ))}
@@ -213,23 +188,13 @@ export default function AdminDashboard() {
             <label className="form-label">Tags / Keywords</label>
             {keywords.map((tag, i) => (
               <div key={i} className="flex items-center gap-2 mb-1">
-                <input
-                  type="text"
-                  placeholder={`Keyword ${i + 1}`}
-                  value={tag}
-                  onChange={(e) => updateKeyword(i, e.target.value)}
-                  className="form-input flex-1"
-                />
+                <input type="text" placeholder={`Keyword ${i + 1}`} value={tag} onChange={(e) => updateKeyword(i, e.target.value)} className="form-input flex-1" />
                 {keywords.length > 1 && (
-                  <button type="button" onClick={() => removeKeyword(i)} className="text-red-500 text-xs">
-                    ✕
-                  </button>
+                  <button type="button" onClick={() => removeKeyword(i)} className="text-red-500 text-xs">✕</button>
                 )}
               </div>
             ))}
-            <button type="button" onClick={addKeyword} className="text-blue-600 text-sm hover:underline">
-              + Add Keyword
-            </button>
+            <button type="button" onClick={addKeyword} className="text-blue-600 text-sm hover:underline">+ Add Keyword</button>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -239,17 +204,10 @@ export default function AdminDashboard() {
           </div>
 
           <textarea placeholder="Additional Notes (Optional)" rows={3} className="form-textarea" />
-
-          <button
-            type="submit"
-            className="cursor-pointer w-full bg-blue-700 text-white font-semibold py-3 rounded-lg hover:bg-blue-800 transition"
-          >
-            Submit
-          </button>
+          <button type="submit" className="w-full bg-blue-700 text-white font-semibold py-3 rounded-lg hover:bg-blue-800 transition">Submit</button>
         </form>
       </motion.div>
 
-      {/* Footer */}
       <footer className="absolute bottom-0 w-full bg-blue-900 text-white py-6 px-4 mt-10">
         <div className="flex flex-col items-center relative z-10">
           <p className="text-sm sm:text-base font-semibold mb-3">ProRep by CCDR, DTU</p>

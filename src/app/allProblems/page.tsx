@@ -14,8 +14,13 @@ import { Trash2, Lock, Save } from "lucide-react";
 import toast from "react-hot-toast";
 import Image from "next/image";
 import prorepLogo from "../../assets/prorep-logo.png";
+import { useRouter } from "next/navigation";
+import { useAuth } from "../../context/AuthContext";
 
 export default function AllProblemsPage() {
+
+  
+
   const [problems, setProblems] = useState<any[]>([]);
   const [filters, setFilters] = useState({ keyword: "", department: "", organisation: "" });
   const [authCode, setAuthCode] = useState("");
@@ -67,6 +72,7 @@ export default function AllProblemsPage() {
   };
 
   const handleCodeSubmit = () => {
+    console.log("NEXT_PUBLIC_PROBLEM_EDIT_CODE:", process.env.NEXT_PUBLIC_PROBLEM_EDIT_CODE);
     if (authCode === process.env.NEXT_PUBLIC_PROBLEM_EDIT_CODE) {
       setUnlocked(true);
       toast.success("Edit/Delete access granted");

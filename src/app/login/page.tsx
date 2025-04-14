@@ -18,46 +18,67 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
-  const [intentRole, setIntentRole] = useState<"student" | "admin" | null>(null);
 
-  const handleLogin=async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const handleLogin = async (intentRole: string) => {
+    
+    console.log("Intent Role:", intentRole);
+    
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+  
+    if (!trimmedEmail || !trimmedPassword) {
+      toast.error("Please fill in both email and password.");
+      return;
+    }
+  
     const loadingToast = toast.loading("Logging in...");
-
-
+  
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, trimmedEmail, trimmedPassword);
       const user = userCredential.user;
+  
       const userRef = doc(db, "users", user.uid);
       const userSnap = await getDoc(userRef);
-
+  
       if (!userSnap.exists()) {
         toast.dismiss(loadingToast);
-        toast.error("User not found in database.");
+        toast.error("User does not exist.");
         return;
       }
-      
+  
       const userData = userSnap.data();
-      const actualRole=userData.role;
-
-      if(actualRole !== intentRole) {
+      const actualRole = userData.role;
+  
+      if (actualRole !== intentRole) {
         toast.dismiss(loadingToast);
         toast.error(`You are not authorized as ${intentRole}.`);
         return;
       }
-
-      Cookies.set("userRole", actualRole, { expires: 7 });
+      
+      Cookies.set("uid", user.uid, { expires: 30 }); // Set uid cookie for 30 days
+      Cookies.set("user", JSON.stringify(user), { expires: 30 }); // Set user cookie for 30 days
+      Cookies.set("userRole", actualRole, { expires: 30 }); // Set cookie for 30 days
       toast.success(`Welcome ${actualRole}!`, { id: loadingToast });
 
-      if (actualRole === "admin") router.push("/dashboard");
-      else router.push("/main");
-
-
-    } catch (error) {
-      toast.error("Invalid email or password", { id: loadingToast });
+      if (actualRole === "admin") {
+        router.push("/dashboard");
+        toast.success("Contribute to the community!");
+      } else {
+        router.push("/main");
+        toast.success("Solve What Matters!");
+      }
+    } catch (error: any) {
+      console.error("Login error:", error);
+      toast.error(`Login failed: ${error.message}`);
+      toast.dismiss(loadingToast);
+      toast.error("Invalid email or password");
+    }finally {
+      setEmail("");
+      setPassword("");
+      setShowPassword(false);
     }
-  }
+  };
+  
 
   return (
     <div className="relative min-h-screen w-full bg-gradient-to-br from-[#e0f2fe] to-[#ede9fe] overflow-hidden flex items-center justify-center px-4">
@@ -76,7 +97,7 @@ export default function LoginPage() {
         <h2 className="text-2xl sm:text-3xl font-bold text-center mb-2 text-gray-800">Welcome Back! 👋</h2>
         <p className="text-center text-sm text-gray-500 mb-6">Login to access your account</p>
 
-        <form onClick={handleLogin}>
+        <form onSubmit={(e) => e.preventDefault()}>
           <input
             type="email"
             placeholder="Email"
@@ -112,14 +133,18 @@ export default function LoginPage() {
             <button
               type="submit"
               className="cursor-pointer w-1/2 px-6 py-2 bg-white text-blue-700 border border-blue-500 rounded-lg text-sm font-semibold hover:bg-blue-500 hover:text-white transition-colors duration-100"
-              onClick={() => setIntentRole("student")}
+              onClick={() =>{
+                handleLogin("student");
+              }}
             >
               Student
             </button>
             <button
               type="submit"
               className="cursor-pointer w-1/2 px-6 py-2 bg-white text-purple-700 border border-purple-500 rounded-lg text-sm font-semibold hover:bg-purple-500 hover:text-white transition-colors duration-100"
-              onClick={() => setIntentRole("admin")}
+              onClick={() => {
+                handleLogin("admin");
+              }}
             >
               Admin
             </button>

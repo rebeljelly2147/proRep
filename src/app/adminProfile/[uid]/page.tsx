@@ -9,13 +9,16 @@ import {
   getDocs,
   updateDoc,
   doc,
-  deleteDoc
+  deleteDoc,
 } from "firebase/firestore";
-import { EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
+import { EmailAuthProvider, reauthenticateWithCredential, onAuthStateChanged } from "firebase/auth";
 import { Eye, EyeOff, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
 
 export default function AdminProfilePage() {
+  const router = useRouter();
+
   const [user, setUser] = useState<any>(null);
   const [problems, setProblems] = useState<any[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -24,19 +27,29 @@ export default function AdminProfilePage() {
   const [title, setTitle] = useState("Problem Curator");
 
   useEffect(() => {
-    const currentUser = auth.currentUser;
-    if (!currentUser) return;
-    setUser(currentUser);
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!currentUser) {
+        toast.error("Session expired. Please login again.");
+        router.push("/");
+        return;
+      }
 
-    const fetchProblems = async () => {
-      const q = query(collection(db, "problems"), where("createdBy.uid", "==", currentUser.uid));
+      setUser(currentUser);
+
+      const q = query(
+        collection(db, "problems"),
+        where("createdBy.uid", "==", currentUser.uid)
+      );
       const querySnapshot = await getDocs(q);
-      const problemsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const problemsData = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
       setProblems(problemsData);
-    };
+    });
 
-    fetchProblems();
-  }, []);
+    return () => unsubscribe();
+  }, [router]);
 
   const handleSaveEdit = async (problemId: string, updatedProblem: any) => {
     if (!user) return;
@@ -57,7 +70,7 @@ export default function AdminProfilePage() {
   const handleDelete = async (problemId: string) => {
     try {
       await deleteDoc(doc(db, "problems", problemId));
-      setProblems(prev => prev.filter(p => p.id !== problemId));
+      setProblems((prev) => prev.filter((p) => p.id !== problemId));
       toast.success("Problem deleted successfully.");
     } catch (error) {
       console.error(error);
@@ -85,23 +98,35 @@ export default function AdminProfilePage() {
           />
         </div>
 
-        <h2 className="text-xl font-semibold text-gray-700 mb-4 cursor-pointer">Your Submitted Problems</h2>
+        <h2 className="text-xl font-semibold text-gray-700 mb-4 cursor-pointer">
+          Your Submitted Problems
+        </h2>
         {problems.length === 0 ? (
           <p className="text-sm text-gray-500 italic">No problems submitted yet.</p>
         ) : (
           <div className="grid gap-4">
             {problems.map((problem) => (
-              <div key={problem.id} className="p-4 bg-blue-50 rounded-xl border border-blue-100 shadow-sm">
+              <div
+                key={problem.id}
+                className="p-4 bg-blue-50 rounded-xl border border-blue-100 shadow-sm"
+              >
                 <div className="flex justify-between items-center mb-2">
-                  <h3 className="text-lg font-bold text-blue-800 cursor-pointer">{problem.title}</h3>
+                  <h3 className="text-lg font-bold text-blue-800 cursor-pointer">
+                    {problem.title}
+                  </h3>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => setEditingId(editingId === problem.id ? null : problem.id)}
+                      onClick={() =>
+                        setEditingId(editingId === problem.id ? null : problem.id)
+                      }
                       className="text-sm text-blue-600 hover:underline cursor-pointer"
                     >
                       {editingId === problem.id ? "Cancel" : "Edit"}
                     </button>
-                    <button onClick={() => handleDelete(problem.id)} className="text-red-500 cursor-pointer">
+                    <button
+                      onClick={() => handleDelete(problem.id)}
+                      className="text-red-500 cursor-pointer"
+                    >
                       <Trash2 size={18} />
                     </button>
                   </div>
@@ -182,7 +207,9 @@ export default function AdminProfilePage() {
                     </button>
                   </>
                 ) : (
-                  <p className="text-sm text-gray-700 whitespace-pre-line cursor-pointer">{problem.statement}</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-line cursor-pointer">
+                    {problem.statement}
+                  </p>
                 )}
               </div>
             ))}

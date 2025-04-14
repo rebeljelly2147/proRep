@@ -3,22 +3,37 @@ import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
   const userRole = request.cookies.get('userRole')?.value;
-  const pathname = request.nextUrl.pathname;
+  const { pathname } = request.nextUrl;
 
-  // Protect admin routes
-  if (
-    (pathname.startsWith('/admin') || pathname === '/dashboard') &&
-    userRole !== 'admin'
-  ) {
-    return NextResponse.redirect(new URL('/', request.url)); // Redirect to home
+  // ✅ Allow always-accessible public routes
+  const publicRoutes = ['/', '/login', '/signup'];
+  if (publicRoutes.includes(pathname)) {
+    return NextResponse.next();
   }
 
-  // Protect student routes
+  // ✅ Admin-only routes
+  if (pathname.startsWith('/admin') || pathname.startsWith('/profile')) {
+    if (userRole !== 'admin') {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+  }
+
+  // ✅ Student-only routes
   if (
-    (pathname.startsWith('/student') || pathname === '/main') &&
-    userRole !== 'student'
+    pathname === '/main' ||
+    pathname.startsWith('/interested') ||
+    pathname.startsWith('/bookmarked')
   ) {
-    return NextResponse.redirect(new URL('/', request.url)); // Redirect to home
+    if (userRole !== 'student') {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+  }
+
+  // ✅ Shared authenticated route
+  if (pathname.startsWith('/details')) {
+    if (!userRole) {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
   }
 
   return NextResponse.next();
@@ -27,8 +42,10 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     '/admin/:path*',
-    '/student/:path*',
+    '/profile/:path*',
     '/main',
-    '/dashboard',
+    '/interested/:path*',
+    '/bookmarked/:path*',
+    '/details/:path*',
   ],
 };

@@ -1,20 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import Image from "next/image";
-import Link from "next/link";
-import { Menu, X, User, Bookmark, Star } from "lucide-react";
-import prorepLogo from "../../assets/prorep-logo.png";
+import { use, useEffect, useState } from "react";
 import { db, auth } from "../../firebase/firebase";
 import {
   collection,
-  getDocs,
   updateDoc,
   doc,
   onSnapshot,
 } from "firebase/firestore";
+import { motion } from "framer-motion";
+import Image from "next/image";
+import Link from "next/link";
+import { Menu, X, Bookmark, Star } from "lucide-react";
+import prorepLogo from "../../assets/prorep-logo.png";
 import { toast } from "react-hot-toast";
+import { useRouter } from "next/navigation";
+import Cookies from "js-cookie";
+import { getDocs } from "firebase/firestore";
 
 const departments = [
   "Applied Chemistry", "Applied Mathematics", "Applied Physics", "Biotechnology",
@@ -25,15 +27,39 @@ const departments = [
 ];
 
 export default function StudentProblems() {
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const role = Cookies.get("userRole");
+    if (role !== "student") {
+      toast.error("Unauthorized access. Redirecting...");
+      router.push("/");
+    } else {
+      setIsLoading(false);
+    }
+  }, []);
+
   const [selectedDept, setSelectedDept] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [flip, setFlip] = useState(false);
-  const [problems, setProblems] = useState<any[]>([]);
+ interface Problem {
+    id: string;
+    title?: string | null;
+    department?: string | null;
+    description?: string | null;
+    statement?: string | null;
+    bookmarks?: string[] | null;
+    interested?: string[] | null;
+    departments?: string[] | null;
+  }
+  const [problems, setProblems] = useState<Problem[]>([]);
   const [user, setUser] = useState<any>(null);
+  const [currentStudent,setCurrentStudent]=useState<any>(null);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "problems"), (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Problem[];
       setProblems(data);
     });
     return () => unsubscribe();
@@ -41,7 +67,14 @@ export default function StudentProblems() {
 
   useEffect(() => {
     const currentUser = auth.currentUser;
-    if (currentUser) setUser(currentUser);
+    if (currentUser) {
+      setUser(currentUser);
+    } else {
+      const uid = Cookies.get("uid");
+      if (uid) {
+        setUser({ uid: uid });
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -64,10 +97,72 @@ export default function StudentProblems() {
 
     try {
       await updateDoc(doc(db, "problems", id), { [field]: updatedArray });
-    } catch (error) {
-      toast.error("Failed to update problem");
+      toast.success("Problem updated successfully!");
+    } catch (error: any) {
+      console.error("Error updating document: ", error);
+      toast.error(`Failed to update problem: ${error.message}`);
     }
+
+
   };
+
+  const handleToggleBookmark=async(id:string)=>{
+    const querySnapshot=await getDocs(collection(db, "users"));
+    const AllUsers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    console.log("All Users:", AllUsers);
+    const currentUser = AllUsers.find(u => u.id === user.uid);
+    
+    if(!currentUser)
+      {
+        toast.error("Session Expired!");
+        router.push("/");
+        return;
+      }
+    setCurrentStudent(currentUser);
+    const bookMarkArray=currentUser.bookmarks;
+
+    if(bookMarkArray.includes(id)){
+      const updatedArray=bookMarkArray.filter((uid:string)=>uid!==id);
+      await updateDoc(doc(db, "users", user.uid), { bookmarks: updatedArray });
+      toast.success("Bookmark removed successfully!");
+    }
+    else
+    {
+      const updatedArray=[...bookMarkArray, id];
+      await updateDoc(doc(db, "users", user.uid), { bookmarks: updatedArray });
+      toast.success("Bookmark added successfully!");
+    }
+
+  }
+
+  const handleToggleInterested=async(id:string)=>{
+    const querySnapshot=await getDocs(collection(db, "users"));
+    const AllUsers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    console.log("All Users:", AllUsers);
+    const currentUser = AllUsers.find(u => u.id === user.uid);
+    
+    if(!currentUser)
+    {
+      toast.error("Session Expired!");
+      router.push("/");
+      return;
+    }
+
+    setCurrentStudent(currentUser);
+    const interestedArray=currentUser.interested;
+
+    if(interestedArray.includes(id)){
+      const updatedArray=interestedArray.filter((uid:string)=>uid!==id);
+      await updateDoc(doc(db, "users", user.uid), { interested: updatedArray });
+      toast.success("Interest removed successfully!");
+    }
+    else
+    {
+      const updatedArray=[...interestedArray, id];
+      await updateDoc(doc(db, "users", user.uid), { interested: updatedArray });
+      toast.success("Interest added successfully!");
+    }
+  }
 
   const filteredProblems = selectedDept
     ? problems.filter((p) => p.departments?.includes(selectedDept))
@@ -85,6 +180,8 @@ export default function StudentProblems() {
       path: user ? `/bookmarked?uid=${user.uid}` : "#",
     },
   ];
+
+  if (isLoading) return null;
 
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-blue-50 to-purple-100 overflow-hidden pb-32">
@@ -186,9 +283,13 @@ export default function StudentProblems() {
             </p>
             <div className="flex gap-2">
               <button
-                onClick={() => handleToggle(problem.id, "bookmarks")}
+                onClick={() => {
+                  console.log("User:", user);
+                  handleToggle(problem.id, "bookmarks");
+                  handleToggleBookmark(problem.id);
+                }}
                 className={`px-3 py-1 border text-xs rounded transition cursor-pointer ${
-                  problem.bookmarks?.includes(user?.uid)
+                  problem.bookmarks?.includes(user?.uid ?? "")
                     ? "bg-blue-100 border-blue-600 text-blue-800"
                     : "border-blue-500 text-blue-600 hover:bg-blue-50"
                 }`}
@@ -196,9 +297,13 @@ export default function StudentProblems() {
                 Bookmark
               </button>
               <button
-                onClick={() => handleToggle(problem.id, "interested")}
+                onClick={() => {
+                  console.log("User:", user);
+                  handleToggle(problem.id, "interested");
+                  handleToggleInterested(problem.id);
+                }}
                 className={`px-3 py-1 border text-xs rounded transition cursor-pointer ${
-                  problem.interested?.includes(user?.uid)
+                  problem.interested?.includes(user?.uid ?? "")
                     ? "bg-purple-100 border-purple-600 text-purple-800"
                     : "border-purple-500 text-purple-600 hover:bg-purple-50"
                 }`}
@@ -206,7 +311,7 @@ export default function StudentProblems() {
                 Interested
               </button>
               <Link
-                href={`/problems/${problem.id}`}
+                href={`/details?pid=${problem.id}`}
                 className="ml-auto text-blue-600 text-xs hover:underline"
               >
                 View Details
@@ -223,24 +328,9 @@ export default function StudentProblems() {
             ProRep by CCDR, DTU
           </p>
           <div className="flex gap-3">
-            <div
-              className="w-6 h-6 sm:w-8 sm:h-8 rounded-full"
-              style={{
-                background: "radial-gradient(circle at 30% 30%, #60a5fa, #3b82f6)",
-              }}
-            />
-            <div
-              className="w-6 h-6 sm:w-8 sm:h-8 rounded-full"
-              style={{
-                background: "radial-gradient(circle at 30% 30%, #a78bfa, #7c3aed)",
-              }}
-            />
-            <div
-              className="w-6 h-6 sm:w-8 sm:h-8 rounded-full"
-              style={{
-                background: "radial-gradient(circle at 30% 30%, #38bdf8, #0ea5e9)",
-              }}
-            />
+            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full" style={{ background: "radial-gradient(circle at 30% 30%, #60a5fa, #3b82f6)" }} />
+            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full" style={{ background: "radial-gradient(circle at 30% 30%, #a78bfa, #7c3aed)" }} />
+            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full" style={{ background: "radial-gradient(circle at 30% 30%, #38bdf8, #0ea5e9)" }} />
           </div>
         </div>
         <div className="absolute top-0 right-0 w-32 h-32 bg-blue-900 rounded-bl-[80px] z-0" />

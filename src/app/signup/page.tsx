@@ -20,10 +20,14 @@ export default function SignupPage() {
   const router = useRouter();
 
   const handleSignUp = async (role: "student" | "admin") => {
+
     const loadingToast = toast.loading("Creating account...");
 
     const trimmedEmail = email.trim();
     const trimmedPassword = password.trim();
+
+    console.log("Trimmed Email:", trimmedEmail);
+    console.log("Trimmed Password:", trimmedPassword);
 
     if (!trimmedEmail || !trimmedPassword) {
       toast.dismiss(loadingToast);
@@ -38,7 +42,7 @@ export default function SignupPage() {
       return;
     }
 
-    const isValidAdminCode = adminCode.trim() === process.env.NEXT_PUBLIC_ADMIN_CODE;
+    const isValidAdminCode = adminCode.trim() === process.env.NEXT_PUBLIC_ADMIN_UUID;
 
     if (role === "admin" && !isValidAdminCode) {
       toast.dismiss(loadingToast);
@@ -83,13 +87,28 @@ export default function SignupPage() {
         toast.success(`Signed up successfully as ${role}!`);
       }
 
-      Cookies.set("userRole", role, { expires: 7 });
+      Cookies.set("userRole", role, { expires: 30 });// Set user role cookie for 30 days
+      Cookies.set("uid", user.uid, { expires: 30 });// Set user ID cookie for 30 days
+      Cookies.set("user", JSON.stringify(user), { expires: 30 }); // Set user cookie for 30 days
+
       toast.dismiss(loadingToast);
-      router.push("/main");
+      if(role === "admin") {
+        router.push("/dashboard");
+        toast.success("Contribute to the community!");
+      }
+      else {
+        router.push("/main");
+        toast.success("Solve What Matters");
+      }
     } catch (err: any) {
       console.error("Signup Error:", err);
       toast.dismiss(loadingToast);
       toast.error("Signup failed.");
+    } finally{
+      setEmail("");
+      setPassword("");
+      setAdminCode("");
+      setShowPassword(false);
     }
   };
 
