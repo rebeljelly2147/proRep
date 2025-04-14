@@ -10,7 +10,10 @@ import { Eye, EyeOff } from "lucide-react";
 import Cookies from "js-cookie";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from "../../firebase/firebase";
+import { collection } from "firebase/firestore";
 import { setDoc, doc, serverTimestamp, getDoc } from "firebase/firestore";
+import { query, where, getDocs } from "firebase/firestore";
+import { updateDoc } from "firebase/firestore";
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
@@ -19,8 +22,8 @@ export default function SignupPage() {
   const [adminCode, setAdminCode] = useState("");
   const router = useRouter();
 
-  const handleSignUp = async (role: "student" | "admin") => {
-
+  const handleAdminSignup = async() => {
+    const role="admin";
     const loadingToast = toast.loading("Creating account...");
 
     const trimmedEmail = email.trim();
@@ -28,8 +31,7 @@ export default function SignupPage() {
 
     console.log("Trimmed Email:", trimmedEmail);
     console.log("Trimmed Password:", trimmedPassword);
-
-    if (!trimmedEmail || !trimmedPassword) {
+    if(!trimmedEmail || !trimmedPassword) {
       toast.dismiss(loadingToast);
       toast.error("Please fill in both email and password.");
       return;
@@ -42,39 +44,138 @@ export default function SignupPage() {
       return;
     }
 
-    const isValidAdminCode = adminCode.trim() === process.env.NEXT_PUBLIC_ADMIN_UUID;
+    try{
+      const usersRef=collection(db, "users");
+      const q=query(usersRef, where("email", "==", trimmedEmail));
+      const querySnapshot  = await getDocs(q);
 
-    if (role === "admin" && !isValidAdminCode) {
-      toast.dismiss(loadingToast);
-      toast.error("Invalid admin code.");
-      return;
-    }
+      if(!querySnapshot.empty) {
+        const userDoc = querySnapshot.docs[0];
+        const userData = userDoc.data();
+        const currentRole = userData.role;
 
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, trimmedEmail, trimmedPassword);
-      const user = userCredential.user;
-      const userRef = doc(db, "users", user.uid);
-      const userSnap = await getDoc(userRef);
-
-      if (userSnap.exists()) {
-        const existingData = userSnap.data();
-        const currentRole = existingData.role;
-
-        if (currentRole !== role) {
+        if(currentRole !== role) {
           await setDoc(
-            userRef,
+            userDoc.ref,
             {
-              ...existingData,
+              ...userData,
               role: role,
               updatedAt: serverTimestamp(),
             },
             { merge: true }
-          );
+          )
+          toast.dismiss(loadingToast);
           toast.success(`Role changed to ${role}`);
-        } else {
-          toast.success("Logged in with existing role.");
+          Cookies.set("userRole", role, { expires: 30 });// Set user role cookie for 30 days
+          Cookies.set("uid", userDoc.id, { expires: 30 });// Set user ID cookie for 30 days
+          Cookies.set("user", JSON.stringify(userData), { expires: 30 }); // Set user cookie for 30 days    
         }
-      } else {
+        else{
+          toast.error("User already exists with this email and role.");
+          router.push("/login");
+          toast.dismiss(loadingToast);
+          return;
+        }
+      }
+
+      else{
+        const userCredential = await createUserWithEmailAndPassword(auth, trimmedEmail, trimmedPassword);
+        const user = userCredential.user;
+        const userRef = doc(db, "users", user.uid);
+        await setDoc(userRef, {
+          uid: user.uid,
+          email: user.email,
+          role: role,
+          createdAt: serverTimestamp(),
+          bookmarks: [],
+          interested: [],
+        });
+        toast.success(`Signed up successfully as ${role}!`);
+        Cookies.set("userRole", role, { expires: 30 });// Set user role cookie for 30 days
+        Cookies.set("uid", user.uid, { expires: 30 });// Set user ID cookie for 30 days
+        Cookies.set("user", JSON.stringify(user), { expires: 30 }); // Set user cookie for 30 days
+      }
+      toast.dismiss(loadingToast);
+      router.push("/dashboard");
+      toast.success("Contribute to the community!");
+
+    }catch (err: any) {
+      console.error("Signup Error:", err);
+      toast.dismiss(loadingToast);
+      toast.error("Signup failed.");
+    }finally{
+      setEmail("");
+      setPassword("");
+      setAdminCode("");
+      setShowPassword(false);
+    }
+
+
+
+  }
+
+
+  const handleStudentSignup = async() => {
+    const role="student";
+    const loadingToast = toast.loading("Creating account...");
+
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+
+    console.log("Trimmed Email:", trimmedEmail);
+    console.log("Trimmed Password:", trimmedPassword);
+
+    if(!trimmedEmail || !trimmedPassword) {
+      toast.dismiss(loadingToast);
+      toast.error("Please fill in both email and password.");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      toast.dismiss(loadingToast);
+      toast.error("Invalid email format.");
+      return;
+    }
+
+    try{
+
+      const usersRef=collection(db, "users");
+      const q=query(usersRef, where("email", "==", trimmedEmail));
+      const querySnapshot  = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        const userDoc = querySnapshot.docs[0];
+        const currentRole= userDoc.data().role;
+        
+        if(currentRole !== role) {
+          await setDoc(
+            userDoc.ref,
+            {
+              ...userDoc.data(),
+              role: role,
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true }
+          )
+          toast.dismiss(loadingToast);
+          toast.success(`Role changed to ${role}`);
+          Cookies.set("userRole", role, { expires: 30 });// Set user role cookie for 30 days
+          Cookies.set("uid", userDoc.id, { expires: 30 });// Set user ID cookie for 30 days
+          Cookies.set("user", JSON.stringify(userDoc.data()), { expires: 30 }); // Set user cookie for 30 days    
+        }
+        else{
+          toast.error("User already exists with this email and role.");
+          router.push("/login");
+          toast.dismiss(loadingToast);
+          return;
+        }
+      }
+      else {
+
+        const userCredential = await createUserWithEmailAndPassword(auth, trimmedEmail, trimmedPassword);
+        const user = userCredential.user;
+        const userRef = doc(db, "users", user.uid);
         await setDoc(userRef, {
           uid: user.uid,
           email: user.email,
@@ -85,22 +186,17 @@ export default function SignupPage() {
         });
 
         toast.success(`Signed up successfully as ${role}!`);
+
+        Cookies.set("userRole", role, { expires: 30 });// Set user role cookie for 30 days
+        Cookies.set("uid", user.uid, { expires: 30 });// Set user ID cookie for 30 days
+        Cookies.set("user", JSON.stringify(user), { expires: 30 }); // Set user cookie for 30 days  
       }
-
-      Cookies.set("userRole", role, { expires: 30 });// Set user role cookie for 30 days
-      Cookies.set("uid", user.uid, { expires: 30 });// Set user ID cookie for 30 days
-      Cookies.set("user", JSON.stringify(user), { expires: 30 }); // Set user cookie for 30 days
-
       toast.dismiss(loadingToast);
-      if(role === "admin") {
-        router.push("/dashboard");
-        toast.success("Contribute to the community!");
-      }
-      else {
-        router.push("/main");
-        toast.success("Solve What Matters");
-      }
-    } catch (err: any) {
+      router.push("/main");
+      toast.success("Solve What Matters");
+
+    }
+    catch (err: any) {
       console.error("Signup Error:", err);
       toast.dismiss(loadingToast);
       toast.error("Signup failed.");
@@ -171,7 +267,9 @@ export default function SignupPage() {
           <div className="grid grid-cols-2 gap-3 mt-2">
             <button
               type="button"
-              onClick={() => handleSignUp("student")}
+              onClick={() =>{
+                handleStudentSignup()
+              }}
               className="min-h-[42px] text-sm px-4 py-2 rounded-lg font-semibold border bg-blue-500 text-white hover:bg-blue-600 transition text-center cursor-pointer"
             >
               Signup as Student
@@ -179,7 +277,9 @@ export default function SignupPage() {
 
             <button
               type="button"
-              onClick={() => handleSignUp("admin")}
+              onClick={() =>{
+                handleAdminSignup()
+              }}
               disabled={!isValidAdminCode}
               className={`min-h-[42px] text-sm px-4 py-2 rounded-lg font-semibold border text-center transition duration-10 cursor-pointer${
                 isValidAdminCode
