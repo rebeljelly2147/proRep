@@ -17,6 +17,7 @@ import { toast } from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import Cookies from "js-cookie";
 import { getDocs } from "firebase/firestore";
+import { signOut } from "firebase/auth";
 
 const departments = [
   "Applied Chemistry", "Applied Mathematics", "Applied Physics", "Biotechnology",
@@ -164,6 +165,16 @@ export default function StudentProblems() {
     }
   }
 
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      toast.success("Successfully logged out");
+      router.push("/login");
+    } catch (error) {
+      toast.error("Failed to log out");
+    }
+  };
+
   const filteredProblems = selectedDept
     ? problems.filter((p) => p.departments?.includes(selectedDept))
     : problems;
@@ -185,6 +196,16 @@ export default function StudentProblems() {
 
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-blue-50 to-purple-100 overflow-hidden pb-32">
+      {/* Only show the button when sidebar is closed */}
+      {!sidebarOpen && (
+        <button
+          className="fixed top-4 right-4 z-50 bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-md shadow-md text-sm font-medium transition-colors"
+          onClick={handleLogout}
+        >
+          Logout
+        </button>
+      )}
+
       {/* Background */}
       <div className="absolute -top-40 -left-32 w-[300px] h-[300px] bg-purple-300 rounded-full blur-[160px] opacity-30 z-0" />
       <div className="absolute -bottom-40 -right-32 w-[300px] h-[300px] bg-blue-300 rounded-full blur-[160px] opacity-30 z-0" />
@@ -220,6 +241,19 @@ export default function StudentProblems() {
             {item.name}
           </Link>
         ))}
+        <div className="mt-auto pt-4 border-t">
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-red-100 text-red-600 transition-all w-full"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1-2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            Logout
+          </button>
+        </div>
       </motion.div>
 
       {/* Logo flip */}

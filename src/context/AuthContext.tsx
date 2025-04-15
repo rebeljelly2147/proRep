@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { onAuthStateChanged, sendPasswordResetEmail, fetchSignInMethodsForEmail } from "firebase/auth";
+import { onAuthStateChanged, sendPasswordResetEmail, fetchSignInMethodsForEmail, signOut } from "firebase/auth";
 import { auth } from "../firebase/firebase";
 
 const AuthContext = createContext<any>(null);
@@ -30,6 +30,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  // Logout function
+  const logout = async () => {
+    try {
+      await signOut(auth);
+      return { success: true };
+    } catch (error: any) {
+      console.error("Logout error:", error);
+      return { success: false, error: error.message };
+    }
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
@@ -39,7 +50,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, forgotPassword, checkEmailExists }}>
+    <AuthContext.Provider value={{
+      user,
+      forgotPassword,
+      checkEmailExists,
+      logout
+    }}>
       {children}
     </AuthContext.Provider>
   );
