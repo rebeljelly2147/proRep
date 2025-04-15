@@ -125,7 +125,10 @@ export default function LoginPage() {
             </button>
           </div>
 
-          <div className="text-right text-xs text-blue-600 mb-4 cursor-pointer hover:underline">
+          <div 
+            className="text-right text-xs text-blue-600 mb-4 cursor-pointer hover:underline"
+            onClick={() => router.push("/forgot-password")}
+          >
             Forgot password?
           </div>
 
