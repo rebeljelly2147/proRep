@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react"; // Add useRef
 import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
@@ -27,10 +27,17 @@ export default function AdminDashboard() {
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [flip, setFlip] = useState(false);
+  const intentionalLogout = useRef(false); // Add this ref to track intentional logout
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       const role = Cookies.get("userRole");
+
+      // Add check for intentional logout
+      if (intentionalLogout.current) {
+        // Skip the error message if this is an intentional logout
+        return;
+      }
 
       if (!role || role !== "admin" || !user) {
         toast.error("Access Denied. Admins only.");
@@ -105,6 +112,28 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      // Set the intentional logout flag
+      intentionalLogout.current = true;
+      
+      // Remove the role cookie
+      Cookies.remove("userRole");
+      
+      // Sign out from Firebase
+      await auth.signOut();
+      
+      // Show success message and redirect to login page
+      toast.success("Successfully logged out");
+      router.push("/login");
+    } catch (error) {
+      console.error("Logout error:", error);
+      toast.error("Failed to log out");
+      // Reset the flag if logout fails
+      intentionalLogout.current = false;
+    }
+  };
+
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-blue-50 to-purple-100 overflow-hidden pb-48">
       {/* Background Blobs */}
@@ -112,10 +141,20 @@ export default function AdminDashboard() {
       <div className="absolute -bottom-40 -right-32 w-[300px] h-[300px] bg-blue-300 rounded-full blur-[160px] opacity-30 z-0" />
       <div className="absolute top-0 left-0 w-1/4 h-1/2 bg-blue-900 rounded-br-full z-0" />
 
-      {/* Sidebar */}
+      {/* Sidebar toggle button */}
       <button className="fixed top-4 left-4 z-50 bg-blue-700 text-white p-2 rounded-md shadow-md" onClick={() => setSidebarOpen(true)}>
         <Menu size={22} />
       </button>
+
+      {/* Logout button - only visible when sidebar is closed */}
+      {!sidebarOpen && (
+        <button 
+          className="fixed top-4 right-4 z-50 bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-md shadow-md text-sm font-medium transition-colors"
+          onClick={handleLogout}
+        >
+          Logout
+        </button>
+      )}
 
       <motion.div
         initial={{ x: -300, opacity: 0 }}
@@ -135,6 +174,20 @@ export default function AdminDashboard() {
             {item.name}
           </Link>
         ))}
+
+        <div className="mt-auto pt-4 border-t">
+          <button
+            onClick={handleLogout}
+            className="flex w-full items-center gap-3 px-3 py-2 text-sm rounded-md hover:bg-red-100 text-red-600 transition-all"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            Logout
+          </button>
+        </div>
       </motion.div>
 
       {/* Logo Flip */}

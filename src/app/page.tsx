@@ -4,9 +4,11 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import prorepLogo from "../assets/prorep-logo.png";
+import { useAuth } from "@/context/AuthContext";
 
 export default function Home() {
   const router = useRouter();
+  const { user } = useAuth();
 
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-[#e0f2fe] to-[#ede9fe] overflow-hidden flex flex-col">
@@ -46,19 +48,30 @@ export default function Home() {
           transition={{ delay: 0.4, duration: 0.6 }}
           className="flex flex-col sm:flex-row gap-4 sm:gap-6"
         >
-          <button
-            onClick={() => router.push("/login")}
-            className="px-6 py-2 sm:px-7 sm:py-2.5 bg-white text-blue-700 border border-blue-500 rounded-lg text-sm sm:text-base font-medium transition-colors duration-300 hover:bg-blue-50 cursor-pointer"
-          >
-            Login
-          </button>
+          {!user ? (
+            <>
+              <button
+                onClick={() => router.push("/login")}
+                className="px-6 py-2 sm:px-7 sm:py-2.5 bg-white text-blue-700 border border-blue-500 rounded-lg text-sm sm:text-base font-medium transition-colors duration-300 hover:bg-blue-50 cursor-pointer"
+              >
+                Login
+              </button>
 
-          <button
-            onClick={() => router.push("/signup")}
-            className="px-6 py-2 sm:px-7 sm:py-2.5 bg-white text-green-700 border border-green-500 rounded-lg text-sm sm:text-base font-medium transition-colors duration-300 hover:bg-green-50 cursor-pointer"
-          >
-            Sign Up
-          </button>
+              <button
+                onClick={() => router.push("/signup")}
+                className="px-6 py-2 sm:px-7 sm:py-2.5 bg-white text-green-700 border border-green-500 rounded-lg text-sm sm:text-base font-medium transition-colors duration-300 hover:bg-green-50 cursor-pointer"
+              >
+                Sign Up
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => router.push("/main")}
+              className="px-6 py-2 sm:px-7 sm:py-2.5 bg-white text-blue-700 border border-blue-500 rounded-lg text-sm sm:text-base font-medium transition-colors duration-300 hover:bg-blue-50 cursor-pointer"
+            >
+              Go to Dashboard
+            </button>
+          )}
         </motion.div>
       </main>
 
