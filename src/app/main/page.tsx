@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useState, useRef } from "react";
 import { db, auth } from "../../firebase/firebase";
 import {
   collection,
@@ -30,6 +30,7 @@ const departments = [
 export default function StudentProblems() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
+  const sidebarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const role = Cookies.get("userRole");
@@ -44,7 +45,7 @@ export default function StudentProblems() {
   const [selectedDept, setSelectedDept] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [flip, setFlip] = useState(false);
- interface Problem {
+  interface Problem {
     id: string;
     title?: string | null;
     department?: string | null;
@@ -56,7 +57,7 @@ export default function StudentProblems() {
   }
   const [problems, setProblems] = useState<Problem[]>([]);
   const [user, setUser] = useState<any>(null);
-  const [currentStudent,setCurrentStudent]=useState<any>(null);
+  const [currentStudent, setCurrentStudent] = useState<any>(null);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "problems"), (snapshot) => {
@@ -83,6 +84,20 @@ export default function StudentProblems() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (!sidebarOpen) return;
+
+    // Create an overlay that closes sidebar on click
+    const overlay = document.createElement('div');
+    overlay.className = 'fixed inset-0 z-40 bg-opacity-30';
+    overlay.onclick = () => setSidebarOpen(false);
+    document.body.appendChild(overlay);
+
+    return () => {
+      document.body.removeChild(overlay);
+    };
+  }, [sidebarOpen]);
+
   const handleToggle = async (
     id: string,
     field: "bookmarks" | "interested"
@@ -107,43 +122,40 @@ export default function StudentProblems() {
 
   };
 
-  const handleToggleBookmark=async(id:string)=>{
-    const querySnapshot=await getDocs(collection(db, "users"));
+  const handleToggleBookmark = async (id: string) => {
+    const querySnapshot = await getDocs(collection(db, "users"));
     const AllUsers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as { id: string; bookmarks: string[]; interested: string[]; }));
     console.log("All Users:", AllUsers);
     const currentUser = AllUsers.find(u => u.id === user.uid);
-    
-    if(!currentUser)
-      {
-        toast.error("Session Expired!");
-        router.push("/");
-        return;
-      }
+
+    if (!currentUser) {
+      toast.error("Session Expired!");
+      router.push("/");
+      return;
+    }
     setCurrentStudent(currentUser);
     const bookMarkArray = (currentUser as { id: string; bookmarks: string[]; }).bookmarks;
 
-    if(bookMarkArray.includes(id)){
-      const updatedArray=bookMarkArray.filter((uid:string)=>uid!==id);
+    if (bookMarkArray.includes(id)) {
+      const updatedArray = bookMarkArray.filter((uid: string) => uid !== id);
       await updateDoc(doc(db, "users", user.uid), { bookmarks: updatedArray });
       toast.success("Bookmark removed successfully!");
     }
-    else
-    {
-      const updatedArray=[...bookMarkArray, id];
+    else {
+      const updatedArray = [...bookMarkArray, id];
       await updateDoc(doc(db, "users", user.uid), { bookmarks: updatedArray });
       toast.success("Bookmark added successfully!");
     }
 
   }
 
-  const handleToggleInterested=async(id:string)=>{
-    const querySnapshot=await getDocs(collection(db, "users"));
+  const handleToggleInterested = async (id: string) => {
+    const querySnapshot = await getDocs(collection(db, "users"));
     const AllUsers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     console.log("All Users:", AllUsers);
     const currentUser = AllUsers.find(u => u.id === user.uid);
-    
-    if(!currentUser)
-    {
+
+    if (!currentUser) {
       toast.error("Session Expired!");
       router.push("/");
       return;
@@ -152,14 +164,13 @@ export default function StudentProblems() {
     setCurrentStudent(currentUser);
     const interestedArray = (currentUser as { id: string; interested: string[]; }).interested;
 
-    if(interestedArray.includes(id)){
-      const updatedArray=interestedArray.filter((uid:string)=>uid!==id);
+    if (interestedArray.includes(id)) {
+      const updatedArray = interestedArray.filter((uid: string) => uid !== id);
       await updateDoc(doc(db, "users", user.uid), { interested: updatedArray });
       toast.success("Interest removed successfully!");
     }
-    else
-    {
-      const updatedArray=[...interestedArray, id];
+    else {
+      const updatedArray = [...interestedArray, id];
       await updateDoc(doc(db, "users", user.uid), { interested: updatedArray });
       toast.success("Interest added successfully!");
     }
@@ -220,6 +231,7 @@ export default function StudentProblems() {
       </button>
 
       <motion.div
+        ref={sidebarRef}
         initial={{ x: -300, opacity: 0 }}
         animate={sidebarOpen ? { x: 0, opacity: 1 } : { x: -300, opacity: 0 }}
         transition={{ type: "tween", ease: "easeInOut", duration: 0.4 }}
@@ -322,11 +334,10 @@ export default function StudentProblems() {
                   handleToggle(problem.id, "bookmarks");
                   handleToggleBookmark(problem.id);
                 }}
-                className={`px-3 py-1 border text-xs rounded transition cursor-pointer ${
-                  problem.bookmarks?.includes(user?.uid ?? "")
+                className={`px-3 py-1 border text-xs rounded transition cursor-pointer ${problem.bookmarks?.includes(user?.uid ?? "")
                     ? "bg-blue-100 border-blue-600 text-blue-800"
                     : "border-blue-500 text-blue-600 hover:bg-blue-50"
-                }`}
+                  }`}
               >
                 Bookmark
               </button>
@@ -336,11 +347,10 @@ export default function StudentProblems() {
                   handleToggle(problem.id, "interested");
                   handleToggleInterested(problem.id);
                 }}
-                className={`px-3 py-1 border text-xs rounded transition cursor-pointer ${
-                  problem.interested?.includes(user?.uid ?? "")
+                className={`px-3 py-1 border text-xs rounded transition cursor-pointer ${problem.interested?.includes(user?.uid ?? "")
                     ? "bg-purple-100 border-purple-600 text-purple-800"
                     : "border-purple-500 text-purple-600 hover:bg-purple-50"
-                }`}
+                  }`}
               >
                 Interested
               </button>
