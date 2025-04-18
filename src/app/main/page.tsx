@@ -235,7 +235,7 @@ export default function StudentProblems() {
         initial={{ x: -300, opacity: 0 }}
         animate={sidebarOpen ? { x: 0, opacity: 1 } : { x: -300, opacity: 0 }}
         transition={{ type: "tween", ease: "easeInOut", duration: 0.4 }}
-        className="fixed top-0 left-0 h-full w-64 bg-white z-50 shadow-lg p-6 flex flex-col gap-4"
+        className="fixed top-0 left-0 h-full w-64 backdrop-blur-xl bg-white/60 border-r border-white/50 shadow-lg p-6 flex flex-col gap-4 z-50"
       >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-blue-700">ProRep</h2>
@@ -299,7 +299,7 @@ export default function StudentProblems() {
         <select
           value={selectedDept ?? ""}
           onChange={(e) => setSelectedDept(e.target.value || null)}
-          className="w-full p-2 border border-gray-300 rounded-md text-sm"
+          className="w-full p-2 backdrop-blur-md bg-white/50 border border-white/40 rounded-md text-sm"
         >
           <option value="">All Departments</option>
           {departments.map((dept, i) => (
@@ -316,7 +316,7 @@ export default function StudentProblems() {
           <motion.div
             key={problem.id}
             whileHover={{ scale: 1.02 }}
-            className="bg-white p-4 rounded-xl shadow-md transition relative"
+            className="backdrop-blur-md bg-white/40 p-4 rounded-xl border border-white/50 shadow-md transition relative"
           >
             <h3 className="text-lg font-semibold text-blue-800 mb-1">
               {problem.title}
@@ -335,8 +335,8 @@ export default function StudentProblems() {
                   handleToggleBookmark(problem.id);
                 }}
                 className={`px-3 py-1 border text-xs rounded transition cursor-pointer ${problem.bookmarks?.includes(user?.uid ?? "")
-                    ? "bg-blue-100 border-blue-600 text-blue-800"
-                    : "border-blue-500 text-blue-600 hover:bg-blue-50"
+                  ? "bg-blue-100 border-blue-600 text-blue-800"
+                  : "border-blue-500 text-blue-600 hover:bg-blue-50"
                   }`}
               >
                 Bookmark
@@ -348,8 +348,8 @@ export default function StudentProblems() {
                   handleToggleInterested(problem.id);
                 }}
                 className={`px-3 py-1 border text-xs rounded transition cursor-pointer ${problem.interested?.includes(user?.uid ?? "")
-                    ? "bg-purple-100 border-purple-600 text-purple-800"
-                    : "border-purple-500 text-purple-600 hover:bg-purple-50"
+                  ? "bg-purple-100 border-purple-600 text-purple-800"
+                  : "border-purple-500 text-purple-600 hover:bg-purple-50"
                   }`}
               >
                 Interested
