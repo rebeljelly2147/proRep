@@ -24,7 +24,7 @@ export default function LogoutButton({
       
       if (result.success) {
         toast.dismiss(loadingToast);
-        toast.success("Successfully logged out");
+        toast.success("You have successfully logged out.");
         router.push("/login");
       } else {
         toast.dismiss(loadingToast);
@@ -50,10 +50,7 @@ export default function LogoutButton({
   };
 
   return (
-    <button
-      onClick={handleLogout}
-      className={`${getButtonClasses()} ${className}`}
-    >
+    <button onClick={handleLogout} className={`${getButtonClasses()} ${className}`}>
       Logout
     </button>
   );
