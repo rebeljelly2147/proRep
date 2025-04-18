@@ -28,6 +28,7 @@ export default function AdminDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [flip, setFlip] = useState(false);
   const intentionalLogout = useRef(false); // Add this ref to track intentional logout
+  const sidebarRef = useRef<HTMLDivElement>(null); // Add this ref
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -54,6 +55,20 @@ export default function AdminDashboard() {
     const interval = setInterval(() => setFlip((prev) => !prev), 5000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!sidebarOpen) return;
+
+    // Create an overlay that closes sidebar on click
+    const overlay = document.createElement('div');
+    overlay.className = 'fixed inset-0 z-40';
+    overlay.onclick = () => setSidebarOpen(false);
+    document.body.appendChild(overlay);
+
+    return () => {
+      document.body.removeChild(overlay);
+    };
+  }, [sidebarOpen]);
 
   const navItems = [
     { name: "Profile", icon: <User size={18} />, path: uid ? `/adminProfile/${uid}` : "#" },
@@ -116,13 +131,13 @@ export default function AdminDashboard() {
     try {
       // Set the intentional logout flag
       intentionalLogout.current = true;
-      
+
       // Remove the role cookie
       Cookies.remove("userRole");
-      
+
       // Sign out from Firebase
       await auth.signOut();
-      
+
       // Show success message and redirect to login page
       toast.success("Successfully logged out");
       router.push("/login");
@@ -148,7 +163,7 @@ export default function AdminDashboard() {
 
       {/* Logout button - only visible when sidebar is closed */}
       {!sidebarOpen && (
-        <button 
+        <button
           className="fixed top-4 right-4 z-50 bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-md shadow-md text-sm font-medium transition-colors"
           onClick={handleLogout}
         >
@@ -157,10 +172,11 @@ export default function AdminDashboard() {
       )}
 
       <motion.div
+        ref={sidebarRef}
         initial={{ x: -300, opacity: 0 }}
         animate={sidebarOpen ? { x: 0, opacity: 1 } : { x: -300, opacity: 0 }}
         transition={{ type: "tween", ease: "easeInOut", duration: 0.4 }}
-        className="fixed top-0 left-0 h-full w-64 bg-white z-50 shadow-lg p-6 flex flex-col gap-4"
+        className="fixed top-0 left-0 h-full w-64 backdrop-blur-xl bg-white/60 border-r border-white/50 shadow-lg p-6 flex flex-col gap-4 z-50"
       >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-blue-700">ProRep</h2>
